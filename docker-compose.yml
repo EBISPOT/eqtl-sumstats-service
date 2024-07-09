@@ -24,7 +24,6 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
 
-
   schema-registry:
     image: confluentinc/cp-schema-registry:7.6.1
     depends_on:
@@ -70,8 +69,21 @@ services:
       - SPARK_MODE=master
       - SPARK_MASTER_PORT=7077
 
+  consumer:
+    build:
+      context: ./kafka
+      dockerfile: Dockerfile
+    links:
+      - kafka
+    depends_on:
+      - kafka
+    environment:
+      - PYTHONUNBUFFERED=1
+
   data_extraction:
-    build: ./data_extraction
+    build:
+      context: ./data_extraction
+      dockerfile: Dockerfile
     links:
       - kafka
     depends_on:
