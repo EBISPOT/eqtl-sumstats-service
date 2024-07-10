@@ -14,11 +14,8 @@ try:
         if msg is None:
             continue
         if msg.error():
-            if msg.error().code() == KafkaException._PARTITION_EOF:
-                continue
-            else:
-                print(msg.error())
-                break
+            print(msg.error())
+            break
         print('Received message: {}: {}'.format(msg.key(), msg.value()))
 except KeyboardInterrupt:
     pass
