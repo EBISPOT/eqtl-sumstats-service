@@ -17,4 +17,4 @@ def send_to_kafka(data):
 if __name__ == "__main__":
     while True:
         extract_data()
-        time.sleep(60)  # Run every 60 seconds
+        time.sleep(5)
