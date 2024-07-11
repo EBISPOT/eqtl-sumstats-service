@@ -10,7 +10,7 @@ def extract_data():
     print("Data extraction complete.")
 
 def send_to_kafka(data):
-    producer = KafkaProducer(bootstrap_servers='kafka:9092')
+    producer = KafkaProducer(bootstrap_servers='kafka:9092', api_version=(0,11,5))
     producer.send('etl_topic', value=data.encode('utf-8'))
     producer.flush()
 
