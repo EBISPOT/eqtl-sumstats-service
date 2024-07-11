@@ -1,7 +1,6 @@
 from pyspark.sql import SparkSession
 
-KAFKA_TOPIC = "etl_topic"
-KAFKA_SERVER = "localhost:9092"
+from constants import KAFKA_SERVER, KAFKA_TOPIC
 
 spark_session = SparkSession.builder.appName("SparkApp").getOrCreate()
 

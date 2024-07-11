@@ -1,0 +1,5 @@
+KAFKA_TOPIC = "etl_topic"
+KAFKA_SERVER = "localhost:9092"
+BOOTSTRAP_SERVERS = "kafka:9092"
+GROUP_ID = "mygroup"
+OFFSET_RESET = "earliest"

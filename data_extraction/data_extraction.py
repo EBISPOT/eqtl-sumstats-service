@@ -1,5 +1,5 @@
 import time
-from kafka import KafkaProducer
+
 
 def extract_data():
     print("Extracting data from eQTL FTP...")
@@ -9,10 +9,17 @@ def extract_data():
     send_to_kafka(data)
     print("Data extraction complete.")
 
+
 def send_to_kafka(data):
-    producer = KafkaProducer(bootstrap_servers='kafka:9092', api_version=(0,11,5))
-    producer.send('etl_topic', value=data.encode('utf-8'))
+    from constants import BOOTSTRAP_SERVERS, KAFKA_TOPIC
+    from kafka import KafkaProducer
+
+    producer = KafkaProducer(
+        bootstrap_servers=BOOTSTRAP_SERVERS, api_version=(0, 11, 5)
+    )
+    producer.send(KAFKA_TOPIC, value=data.encode("utf-8"))
     producer.flush()
+
 
 if __name__ == "__main__":
     while True:

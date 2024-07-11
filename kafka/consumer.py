@@ -1,12 +1,17 @@
-from confluent_kafka import Consumer, KafkaException
+from confluent_kafka import Consumer
 
-c = Consumer({
-    'bootstrap.servers': 'kafka:9092',
-    'group.id': 'mygroup',
-    'auto.offset.reset': 'earliest'
-})
+from constants import BOOTSTRAP_SERVERS, GROUP_ID, KAFKA_TOPIC, OFFSET_RESET
 
-c.subscribe(['etl_topic'])
+c = Consumer(
+    {
+        "bootstrap.servers": BOOTSTRAP_SERVERS,
+        "group.id": GROUP_ID,
+        "auto.offset.reset": OFFSET_RESET,
+    }
+)
+
+c.subscribe([KAFKA_TOPIC])
+
 
 try:
     while True:
@@ -16,7 +21,7 @@ try:
         if msg.error():
             print(msg.error())
             break
-        print('Received message: {}: {}'.format(msg.key(), msg.value()))
+        print("Received message: {}: {}".format(msg.key(), msg.value()))
 except KeyboardInterrupt:
     pass
 finally:
