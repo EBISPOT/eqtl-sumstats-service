@@ -61,13 +61,21 @@ services:
     ports:
       - "27017:27017"
 
-  spark:
-    image: bitnami/spark:3.4.3
-    ports:
-      - "8080:8080"
+  spark-master:
+    image: bitnami/spark:latest
     environment:
       - SPARK_MODE=master
       - SPARK_MASTER_PORT=7077
+    ports:
+      - "8080:8080"
+
+  spark-worker:
+    image: bitnami/spark:latest
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+    depends_on:
+      - spark-master
 
   consumer:
     build:
@@ -88,5 +96,12 @@ services:
       - kafka
     depends_on:
       - kafka
+      - consumer
     environment:
       - PYTHONUNBUFFERED=1
+  
+  spark-app:
+    build: ./spark
+    depends_on:
+      - kafka
+      - spark-master
