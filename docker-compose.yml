@@ -79,8 +79,8 @@ services:
 
   consumer:
     build:
-      context: ./kafka
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: kafka/Dockerfile
     links:
       - kafka
     depends_on:
@@ -90,8 +90,8 @@ services:
 
   data_extraction:
     build:
-      context: ./data_extraction
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: data_extraction/Dockerfile
     links:
       - kafka
     depends_on:
@@ -101,7 +101,9 @@ services:
       - PYTHONUNBUFFERED=1
   
   spark-app:
-    build: ./spark
+    build:
+      context: .
+      dockerfile: spark/Dockerfile
     depends_on:
       - kafka
       - spark-master

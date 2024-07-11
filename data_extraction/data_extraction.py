@@ -11,13 +11,13 @@ def extract_data():
 
 
 def send_to_kafka(data):
-    from constants import BOOTSTRAP_SERVERS, KAFKA_TOPIC
     from kafka import KafkaProducer
+    from utils import constants
 
     producer = KafkaProducer(
-        bootstrap_servers=BOOTSTRAP_SERVERS, api_version=(0, 11, 5)
+        bootstrap_servers=constants.BOOTSTRAP_SERVERS, api_version=(0, 11, 5)
     )
-    producer.send(KAFKA_TOPIC, value=data.encode("utf-8"))
+    producer.send(constants.KAFKA_TOPIC, value=data.encode("utf-8"))
     producer.flush()
 
 

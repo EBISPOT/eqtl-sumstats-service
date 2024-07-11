@@ -1,16 +1,16 @@
 from confluent_kafka import Consumer
 
-from constants import BOOTSTRAP_SERVERS, GROUP_ID, KAFKA_TOPIC, OFFSET_RESET
+from utils import constants
 
 c = Consumer(
     {
-        "bootstrap.servers": BOOTSTRAP_SERVERS,
-        "group.id": GROUP_ID,
-        "auto.offset.reset": OFFSET_RESET,
+        "bootstrap.servers": constants.BOOTSTRAP_SERVERS,
+        "group.id": constants.GROUP_ID,
+        "auto.offset.reset": constants.OFFSET_RESET,
     }
 )
 
-c.subscribe([KAFKA_TOPIC])
+c.subscribe([constants.KAFKA_TOPIC])
 
 
 try:
