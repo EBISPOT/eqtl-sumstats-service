@@ -12,15 +12,17 @@ c = Consumer(
 )
 
 # Subscribe to topic
-c.subscribe([constants.KAFKA_TOPIC, constants.KAFKA_TOPIC_TRANSFORMED])
+c.subscribe([constants.KAFKA_TOPIC])
 
 # Create Kafka Producer
 p = Producer({"bootstrap.servers": constants.BOOTSTRAP_SERVERS})
+
 
 def transform_data(value):
     # Implement your data transformation logic here
     transformed_value = value.upper()  # Example transformation
     return transformed_value
+
 
 try:
     while True:
@@ -37,7 +39,9 @@ try:
         transformed_value = transform_data(msg.value())
 
         # Publish the transformed data to another topic
-        p.produce(constants.KAFKA_TOPIC_TRANSFORMED, key=msg.key(), value=transformed_value)
+        p.produce(
+            constants.KAFKA_TOPIC_TRANSFORMED, key=msg.key(), value=transformed_value
+        )
         p.flush()
 
 except KeyboardInterrupt:

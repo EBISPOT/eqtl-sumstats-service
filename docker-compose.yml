@@ -62,18 +62,20 @@ services:
       - "27017:27017"
 
   spark-master:
-    image: bitnami/spark:latest
+    image: bitnami/spark:3.1.2
     environment:
       - SPARK_MODE=master
       - SPARK_MASTER_PORT=7077
+      # - SPARK_SUBMIT_ARGS=--packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.1.2,org.mongodb.spark:mongo-spark-connector_2.12:3.0.1
     ports:
       - "8080:8080"
 
   spark-worker:
-    image: bitnami/spark:latest
+    image: bitnami/spark:3.1.2
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
+      # - SPARK_SUBMIT_ARGS=--packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.1.2,org.mongodb.spark:mongo-spark-connector_2.12:3.0.1
     depends_on:
       - spark-master
 
@@ -107,14 +109,3 @@ services:
     depends_on:
       - kafka
       - spark-master
-
-  # data_transformation:
-  #   build:
-  #     context: .
-  #     dockerfile: data_transformation/Dockerfile
-  #   depends_on:
-  #     - kafka
-  #     - spark-app
-  #     - mongo
-  #   environment:
-  #     - PYTHONUNBUFFERED=1
