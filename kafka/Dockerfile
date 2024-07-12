@@ -8,6 +8,6 @@ COPY kafka/requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY kafka/consumer.py .
+COPY kafka/data_transformation.py .
 
-ENTRYPOINT ["python", "consumer.py"]
+ENTRYPOINT ["python", "data_transformation.py"]

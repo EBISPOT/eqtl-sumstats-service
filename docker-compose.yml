@@ -77,7 +77,7 @@ services:
     depends_on:
       - spark-master
 
-  consumer:
+  data_transformation:
     build:
       context: .
       dockerfile: kafka/Dockerfile
@@ -96,10 +96,10 @@ services:
       - kafka
     depends_on:
       - kafka
-      - consumer
+      - data_transformation
     environment:
       - PYTHONUNBUFFERED=1
-  
+
   spark-app:
     build:
       context: .
@@ -107,3 +107,14 @@ services:
     depends_on:
       - kafka
       - spark-master
+
+  # data_transformation:
+  #   build:
+  #     context: .
+  #     dockerfile: data_transformation/Dockerfile
+  #   depends_on:
+  #     - kafka
+  #     - spark-app
+  #     - mongo
+  #   environment:
+  #     - PYTHONUNBUFFERED=1
