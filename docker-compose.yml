@@ -8,11 +8,17 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
+    healthcheck:
+      test: ["CMD", "echo", "ruok", "|", "nc", "-w", "2", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   kafka:
     image: confluentinc/cp-kafka:7.6.1
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     ports:
       - "9092:9092"
     environment:
@@ -23,23 +29,36 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   schema-registry:
     image: confluentinc/cp-schema-registry:7.6.1
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     environment:
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092
       SCHEMA_REGISTRY_HOST_NAME: schema-registry
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
     ports:
       - "8081:8081"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   ksqldb-server:
     image: confluentinc/ksqldb-server:0.29.0
     depends_on:
-      - kafka
-      - schema-registry
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
     environment:
       KSQL_CONFIG_DIR: "/etc/ksql"
       KSQL_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092
@@ -48,11 +67,17 @@ services:
       KSQL_KSQL_SCHEMA_REGISTRY_URL: http://schema-registry:8081
     ports:
       - "8088:8088"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   ksqldb-cli:
     image: confluentinc/ksqldb-cli:0.29.0
     depends_on:
-      - ksqldb-server
+      ksqldb-server:
+        condition: service_healthy
     entrypoint: /bin/sh
     tty: true
 
@@ -60,33 +85,39 @@ services:
     image: mongo:latest
     ports:
       - "27017:27017"
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+
 
   spark-master:
     image: bitnami/spark:3.1.2
     environment:
       - SPARK_MODE=master
       - SPARK_MASTER_PORT=7077
-      # - SPARK_SUBMIT_ARGS=--packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.1.2,org.mongodb.spark:mongo-spark-connector_2.12:3.0.1
     ports:
       - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   spark-worker:
     image: bitnami/spark:3.1.2
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
-      # - SPARK_SUBMIT_ARGS=--packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.1.2,org.mongodb.spark:mongo-spark-connector_2.12:3.0.1
     depends_on:
-      - spark-master
+      spark-master:
+        condition: service_healthy
 
   data_transformation:
     build:
       context: .
       dockerfile: kafka/Dockerfile
-    links:
-      - kafka
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     environment:
       - PYTHONUNBUFFERED=1
 
@@ -94,11 +125,15 @@ services:
     build:
       context: .
       dockerfile: data_extraction/Dockerfile
-    links:
-      - kafka
     depends_on:
-      - kafka
-      - data_transformation
+      kafka:
+        condition: service_healthy
+      data_transformation:
+        condition: service_started
+      mongo:
+        condition: service_healthy
+      spark-app:
+        condition: service_started
     environment:
       - PYTHONUNBUFFERED=1
 
@@ -107,5 +142,9 @@ services:
       context: .
       dockerfile: spark/Dockerfile
     depends_on:
-      - kafka
-      - spark-master
+      kafka:
+        condition: service_healthy
+      spark-master:
+        condition: service_healthy
+    environment:
+      - PYTHONUNBUFFERED=1
