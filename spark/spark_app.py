@@ -17,28 +17,30 @@ df = spark_session.readStream.format("kafka") \
     .option("subscribe", constants.KAFKA_TOPIC_TRANSFORMED) \
     .load()
 
-# Define the schema for the data
+# Define the schema for the Kafka messages
 schema = StructType([
     StructField("key", StringType(), True),
     StructField("value", StringType(), True)
 ])
 
-# Parse the Kafka value column into a structured format
-parsed_df = df.selectExpr("CAST(value AS STRING)").select(from_json(col("value"), schema).alias("data")).select("data.*")
+# Parse the Kafka key and value columns into strings
+parsed_df = df.selectExpr("CAST(key AS STRING) as key", "CAST(value AS STRING) as value")
 
-# Print the parsed data (for debugging)
 print('1~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
-print(parsed_df)
-print('2~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
 
 # Debugging: Print the schema and show some rows
 parsed_df.printSchema()
+
+print('2~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
+
+# Print the parsed data (for debugging)
 parsed_df.writeStream \
     .format("console") \
     .outputMode("append") \
     .start()
 
-print('2.5~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
+
+print('3~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
 
 # Write the stream to MongoDB
 query = parsed_df.writeStream \
@@ -48,9 +50,5 @@ query = parsed_df.writeStream \
     .outputMode("append") \
     .start()
 
-print('3~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
-
 # Await termination (will block until the query is stopped)
 query.awaitTermination()
-
-print('4~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')

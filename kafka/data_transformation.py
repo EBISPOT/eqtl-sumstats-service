@@ -39,6 +39,7 @@ try:
         transformed_value = transform_data(msg.value())
 
         # Publish the transformed data to another topic
+        print(f"Producing message: key={msg.key()} value={transformed_value}")
         p.produce(
             constants.KAFKA_TOPIC_TRANSFORMED, key=msg.key(), value=transformed_value
         )
