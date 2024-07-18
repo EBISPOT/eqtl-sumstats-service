@@ -7,8 +7,10 @@ from utils import constants
 
 def transform_data(value):
     # Implement your data transformation logic here
-    transformed_value = value.upper()  # Example transformation
-    return transformed_value
+    # transformed_value = value.upper()  # Example transformation
+    # return transformed_value
+    # TODO: Implement the real data transformation
+    return value
 
 
 # Create Kafka Consumer
@@ -58,4 +60,3 @@ while True:
 
 c.close()
 p.flush()
-
