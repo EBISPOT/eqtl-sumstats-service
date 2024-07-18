@@ -1,10 +1,18 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, from_json
-from pyspark.sql.types import StringType, StructField, StructType
+from pyspark.sql.types import (
+    FloatType,
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
+)
 
+# Importing constants from utils
 # Importing constants from utils
 from utils import constants
 
+# TODO: clean up debug logs
 print("START ===============================================================")
 
 # Initialize Spark session with MongoDB configuration
@@ -18,7 +26,28 @@ spark_session = (
 )
 
 # Define the schema for the JSON data with only one field
-schema = StructType([StructField("molecular_trait_id", StringType(), True)])
+schema = StructType(
+    [
+        StructField("molecular_trait_id", StringType(), True),
+        StructField("molecular_trait_object_id", StringType(), True),
+        StructField("chromosome", StringType(), True),
+        StructField("position", IntegerType(), True),
+        StructField("ref", StringType(), True),
+        StructField("alt", StringType(), True),
+        StructField("variant", StringType(), True),
+        StructField("ma_samples", IntegerType(), True),
+        StructField("maf", FloatType(), True),
+        StructField("pvalue", FloatType(), True),
+        StructField("beta", FloatType(), True),
+        StructField("se", FloatType(), True),
+        StructField("type", StringType(), True),
+        StructField("aan", StringType(), True),
+        StructField("r2", StringType(), True),
+        StructField("gene_id", StringType(), True),
+        StructField("median_tpm", FloatType(), True),
+        StructField("rsid", StringType(), True),
+    ]
+)
 print("schema")
 print(schema)
 
