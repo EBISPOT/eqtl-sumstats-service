@@ -19,7 +19,7 @@ FTP_BASE_PATH = "/pub/databases/spot/eQTL/sumstats/"
 
 
 class SyncStatus(Enum):
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    FAILED = "failed"
+    EXTRACTION_PENDING = "pending"
+    EXTRACTION_IN_PROGRESS = "in_progress"
+    EXTRACTION_COMPLETED = "completed"
+    EXTRACTION_FAILED = "failed"

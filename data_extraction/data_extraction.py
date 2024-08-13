@@ -198,18 +198,18 @@ if __name__ == "__main__":
                                 last_sync_date is None or modified_time > last_sync_date
                             ):
                                 update_sync_date(
-                                    qts_dir, qtd_dir, constants.SyncStatus.IN_PROGRESS
+                                    qts_dir, qtd_dir, constants.SyncStatus.EXTRACTION_IN_PROGRESS
                                 )
                                 extract_data(ftp, file_name, qts_dir)
                                 update_sync_date(
-                                    qts_dir, qtd_dir, constants.SyncStatus.COMPLETED
+                                    qts_dir, qtd_dir, constants.SyncStatus.EXTRACTION_COMPLETED
                                 )
                                 print("Sleeping...")
                                 time.sleep(60)
                         except ValueError as ve:
                             print(f"Skipping file {file_name} due to error: {ve}")
                             update_sync_date(
-                                qts_dir, qtd_dir, constants.SyncStatus.FAILED
+                                qts_dir, qtd_dir, constants.SyncStatus.EXTRACTION_FAILED
                             )
                             continue
 
