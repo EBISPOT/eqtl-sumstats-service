@@ -5,8 +5,15 @@ import os
 import time
 from datetime import datetime
 
+from pymongo import MongoClient
+
 from kafka import KafkaProducer
 from utils import constants
+
+# MongoDB connection setup
+client = MongoClient(constants.MONGO_URI)
+db = client[constants.MONGO_DB]
+collection = db[constants.MONGO_COLLECTION_STATUS]
 
 
 def list_files(ftp, path):
@@ -104,24 +111,35 @@ def send_to_kafka(data, key):
     producer.flush()
 
 
-def update_sync_date(sync_log_path, sync_date):
-    with open(sync_log_path, "w") as f:
-        f.write(sync_date.strftime("%Y-%m-%d %H:%M:%S"))
+def update_sync_date(study_id: str, dataset_id: str, status: constants.SyncStatus):
+    """
+    Updates the sync date, study_id, dataset_id, and status in the MongoDB document.
+    """
+    current_date = datetime.utcnow()
+    collection.update_one(
+        {"study_id": study_id, "dataset_id": dataset_id},
+        {"$set": {"date": current_date, "status": status.value}},
+        upsert=True,
+    )
 
 
-def get_last_sync_date(sync_log_path):
-    if os.path.exists(sync_log_path):
-        with open(sync_log_path, "r") as f:
-            last_sync = f.read().strip()
-        return datetime.strptime(last_sync, "%Y-%m-%d %H:%M:%S")
-    return None
+def get_last_sync_date(study_id: str, dataset_id: str):
+    """
+    Retrieves the last sync date and status for a specific study_id
+    and dataset_id from the MongoDB document.
+    """
+    document = collection.find_one(
+        {"study_id": study_id, "dataset_id": dataset_id},
+        {"date": 1, "status": 1, "_id": 0},
+    )
+    if document:
+        return document.get("date"), document.get("status")
+    else:
+        return None, None
 
 
 if __name__ == "__main__":
     ftp = connect_ftp()
-
-    last_sync_date = get_last_sync_date(constants.SYNC_LOG_PATH)
-    print(f"Last sync date is {last_sync_date}")
 
     if not os.path.exists(constants.LOCAL_PATH):
         print(f"Creating local path {constants.LOCAL_PATH}")
@@ -165,17 +183,36 @@ if __name__ == "__main__":
                                     "File info does not contain enough parts"
                                 )
 
+                            last_sync_date, last_status = get_last_sync_date(
+                                qts_dir, qtd_dir
+                            )
+                            print(
+                                f"""
+                                For {qts_dir}/{qtd_dir}
+                                Last sync date: {last_sync_date}
+                                Status: {last_status}
+                                """
+                            )
+
                             if file_name.endswith(".gz") and (
                                 last_sync_date is None or modified_time > last_sync_date
                             ):
+                                update_sync_date(
+                                    qts_dir, qtd_dir, constants.SyncStatus.IN_PROGRESS
+                                )
                                 extract_data(ftp, file_name, qts_dir)
+                                update_sync_date(
+                                    qts_dir, qtd_dir, constants.SyncStatus.COMPLETED
+                                )
                                 print("Sleeping...")
                                 time.sleep(60)
                         except ValueError as ve:
                             print(f"Skipping file {file_name} due to error: {ve}")
+                            update_sync_date(
+                                qts_dir, qtd_dir, constants.SyncStatus.FAILED
+                            )
                             continue
 
                     ftp.cwd("..")
 
-    update_sync_date(constants.SYNC_LOG_PATH, datetime.now())
     ftp.quit()
