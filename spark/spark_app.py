@@ -11,7 +11,7 @@ from pyspark.sql.types import (
 from utils import constants
 
 # TODO: clean up debug logs
-print("START ===============================================================")
+print("=== START ===")
 
 spark_session = (
     SparkSession.builder.appName("SparkApp")
@@ -60,9 +60,6 @@ df = (
 
 # Parse the Kafka value column into a JSON structure
 parsed_df = df.selectExpr("CAST(value AS STRING) as json_value")
-# print("parsed_df")
-# print(parsed_df)
-
 json_df = parsed_df.select(from_json(col("json_value"), schema).alias("data")).select(
     "data.*"
 )
@@ -75,13 +72,8 @@ json_df = json_df.withColumn("collection_name", concat(lit("study_"), col("study
 
 # Write to MongoDB using the collection name from the batch DataFrame
 def write_to_mongo_collection(batch_df, batch_id):
-    # print('write_to_mongo_collection')
     for collection_name in batch_df.select("collection_name").distinct().collect():
-        # print('collection_name')
-        # print(collection_name)
         collection_name = collection_name["collection_name"]
-        print("collection_name2")
-        print(collection_name)
 
         # Write each micro-batch to the corresponding collection
         batch_df.filter(batch_df.collection_name == collection_name).write.format(
@@ -98,6 +90,6 @@ query = (
     .start()
 )
 
-print("END ===============================================================")
+print("=== END ===")
 
 query.awaitTermination()
