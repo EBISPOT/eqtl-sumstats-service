@@ -45,7 +45,7 @@ def read_file_in_chunks(file_path, chunk_size=1024):
                 yield headers, line.strip().split("\t")
 
 
-def extract_data(ftp, file_name):
+def extract_data(ftp, file_name, qts_dir):
     print(f"Extracting {file_name=}...")
     local_file = os.path.join(constants.LOCAL_PATH, file_name)
     download_file(ftp, os.path.join(ftp.pwd(), file_name), local_file)
@@ -57,6 +57,7 @@ def extract_data(ftp, file_name):
         data_dict = dict(zip(headers, values))
 
         relevant_data = {
+            "study_id": qts_dir,
             "molecular_trait_id": data_dict.get("molecular_trait_id"),
             "molecular_trait_object_id": data_dict.get("molecular_trait_object_id"),
             "chromosome": data_dict.get("chromosome"),
@@ -77,7 +78,7 @@ def extract_data(ftp, file_name):
             "rsid": data_dict.get("rsid"),
         }
         # TODO: remove this debug log
-        print(relevant_data)
+        # print(relevant_data)
 
         key = f"{file_name}_{index}"
         send_to_kafka(json.dumps(relevant_data), key)
@@ -167,7 +168,7 @@ if __name__ == "__main__":
                             if file_name.endswith(".gz") and (
                                 last_sync_date is None or modified_time > last_sync_date
                             ):
-                                extract_data(ftp, file_name)
+                                extract_data(ftp, file_name, qts_dir)
                                 print("Sleeping...")
                                 time.sleep(60)
                         except ValueError as ve:
