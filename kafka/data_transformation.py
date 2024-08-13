@@ -38,14 +38,14 @@ while True:
         if msg.error():
             raise KafkaException(msg.error())
 
-        print("Received message: {}: {}".format(msg.key(), msg.value()))
+        # print("Received message: {}: {}".format(msg.key(), msg.value()))
         is_sub = True
 
         # Transform the data
         transformed_value = transform_data(msg.value())
 
         # Publish the transformed data to another topic
-        print(f"Producing message: key={msg.key()} value={transformed_value}")
+        # print(f"Producing message: key={msg.key()} value={transformed_value}")
         p.produce(
             constants.KAFKA_TOPIC_TRANSFORMED, key=msg.key(), value=transformed_value
         )

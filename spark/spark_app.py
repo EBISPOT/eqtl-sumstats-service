@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, from_json
+from pyspark.sql.functions import col, concat, from_json, lit
 from pyspark.sql.types import (
     FloatType,
     IntegerType,
@@ -8,14 +8,11 @@ from pyspark.sql.types import (
     StructType,
 )
 
-# Importing constants from utils
-# Importing constants from utils
 from utils import constants
 
 # TODO: clean up debug logs
-print("START ===============================================================")
+print("=== START ===")
 
-# Initialize Spark session with MongoDB configuration
 spark_session = (
     SparkSession.builder.appName("SparkApp")
     .config(
@@ -25,7 +22,7 @@ spark_session = (
     .getOrCreate()
 )
 
-# Define the schema for the JSON data with only one field
+# Define the schema for the JSON data
 schema = StructType(
     [
         StructField("molecular_trait_id", StringType(), True),
@@ -46,10 +43,11 @@ schema = StructType(
         StructField("gene_id", StringType(), True),
         StructField("median_tpm", FloatType(), True),
         StructField("rsid", StringType(), True),
+        StructField("study_id", StringType(), True),
     ]
 )
-print("schema")
-print(schema)
+# print("schema")
+# print(schema)
 
 # Read from Kafka topic
 df = (
@@ -62,34 +60,36 @@ df = (
 
 # Parse the Kafka value column into a JSON structure
 parsed_df = df.selectExpr("CAST(value AS STRING) as json_value")
-print("parsed_df")
-print(parsed_df)
-
 json_df = parsed_df.select(from_json(col("json_value"), schema).alias("data")).select(
     "data.*"
 )
-print("json_df")
-print(json_df)
 
-# Debugging: Print the schema and show some rows
-json_df.printSchema()
+# Dynamic collection name based on study_id
+json_df = json_df.withColumn("collection_name", concat(lit("study_"), col("study_id")))
+# print("json_df")
+# print(json_df)
 
-# Debugging: Print the parsed data (for debugging)
-json_df.writeStream.format("console").outputMode("append").start()
 
-# Write the stream to MongoDB
+# Write to MongoDB using the collection name from the batch DataFrame
+def write_to_mongo_collection(batch_df, batch_id):
+    for collection_name in batch_df.select("collection_name").distinct().collect():
+        collection_name = collection_name["collection_name"]
+
+        # Write each micro-batch to the corresponding collection
+        batch_df.filter(batch_df.collection_name == collection_name).write.format(
+            "mongodb"
+        ).mode("append").option("database", constants.MONGO_DB).option(
+            "collection", collection_name
+        ).save()
+
+
+# Apply the write operation to each micro-batch
 query = (
-    json_df.writeStream.format("mongodb")
+    json_df.writeStream.foreachBatch(write_to_mongo_collection)
     .option("checkpointLocation", "/tmp/checkpoints")
-    .option(
-        "uri",
-        f"{constants.MONGO_URI}/{constants.MONGO_DB}.{constants.MONGO_COLLECTION}",
-    )
-    .outputMode("append")
     .start()
 )
 
-print("END ===============================================================")
+print("=== END ===")
 
-# Await termination (will block until the query is stopped)
 query.awaitTermination()
