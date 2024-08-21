@@ -7,6 +7,11 @@ RUN install_packages python3 python3-pip
 
 WORKDIR /app
 
+COPY data_extraction/requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY data_extraction ./data_extraction
 COPY utils ./utils
 COPY spark/spark_app.py .
 COPY spark/log4j.properties /opt/bitnami/spark/conf/
