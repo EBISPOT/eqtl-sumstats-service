@@ -1,8 +1,6 @@
 import ftplib
 import gzip
-import json
 import os
-import time
 from datetime import datetime
 
 from pymongo import MongoClient
@@ -23,20 +21,24 @@ def list_files(ftp, path):
 
 
 def download_file(ftp, remote_path, local_path):
-    # Ensure the directory exists
-    local_dir = os.path.dirname(local_path)
-    os.makedirs(local_dir, exist_ok=True)    
-    
-    print(f"Downloading {remote_path} ==> {local_path}")
-    with open(local_path, "wb") as f:
-        ftp.retrbinary(f"RETR {remote_path}", f.write)
+    try:
+        # Ensure the directory exists
+        local_dir = os.path.dirname(local_path)
+        os.makedirs(local_dir, exist_ok=True)
+
+        print(f"Downloading {remote_path} ==> {local_path}")
+        with open(local_path, "wb") as f:
+            ftp.retrbinary(f"RETR {remote_path}", f.write)
+    except Exception as e:
+        print(f"Failed downloading {remote_path} ==> {local_path}: {e}")
+        raise
 
 
 def connect_ftp():
     try:
         print(f"Connecting to {constants.FTP_SERVER}...")
         ftp = ftplib.FTP(constants.FTP_SERVER)
-        ftp.login()
+        ftp.login(user=constants.FTP_USER, passwd=constants.FTP_PASS)
         print(f"Connection to {constants.FTP_SERVER} successful")
         return ftp
     except ftplib.error_perm as e:
@@ -56,50 +58,6 @@ def read_file_in_chunks(file_path, chunk_size=1024):
                 yield headers, line.strip().split("\t")
 
 
-# def extract_data(ftp, file_name, qts_dir):
-#     print(f"Extracting {file_name}...")
-#     local_file = os.path.join(constants.LOCAL_PATH, file_name)
-    # download_file(ftp, os.path.join(ftp.pwd(), file_name), local_file)
-
-    # print(f"Reading {local_file}...")
-    # index = 0
-
-    # for headers, values in read_file_in_chunks(local_file):
-    #     data_dict = dict(zip(headers, values))
-
-    #     relevant_data = {
-    #         "study_id": qts_dir,
-    #         "molecular_trait_id": data_dict.get("molecular_trait_id"),
-    #         "molecular_trait_object_id": data_dict.get("molecular_trait_object_id"),
-    #         "chromosome": data_dict.get("chromosome"),
-    #         "position": int(data_dict.get("position")),
-    #         "ref": data_dict.get("ref"),
-    #         "alt": data_dict.get("alt"),
-    #         "variant": data_dict.get("variant"),
-    #         "ma_samples": int(data_dict.get("ma_samples")),
-    #         "maf": float(data_dict.get("maf")),
-    #         "pvalue": float(data_dict.get("pvalue")),
-    #         "beta": float(data_dict.get("beta")),
-    #         "se": float(data_dict.get("se")),
-    #         "type": data_dict.get("type"),
-    #         "aan": data_dict.get("aan"),
-    #         "r2": data_dict.get("r2"),
-    #         "gene_id": data_dict.get("gene_id"),
-    #         "median_tpm": float(data_dict.get("median_tpm")),
-    #         "rsid": data_dict.get("rsid"),
-    #     }
-    #     # TODO: remove this debug log
-    #     # print(relevant_data)
-
-    #     key = f"{file_name}_{index}"
-    #     send_to_kafka(json.dumps(relevant_data), key)
-
-    #     index += 1
-
-    # os.remove(local_file)
-    # print(f"Data extraction complete for {file_name}.")
-
-
 def send_to_kafka(data, key):
     producer = KafkaProducer(
         bootstrap_servers=constants.BOOTSTRAP_SERVERS,
@@ -115,25 +73,40 @@ def send_to_kafka(data, key):
     producer.flush()
 
 
-def update_sync_date(study_id: str, dataset_id: str, status: constants.SyncStatus):
+def get_pending_extraction_docs():
     """
-    Updates the sync date, study_id, dataset_id, and status in the MongoDB document.
+    Returns all documents from the MongoDB collection where
+    the status is ETLStatus.EXTRACTION_PENDING, only retrieving
+    the study_id, dataset_id, and file_name fields.
+    """
+    pending_docs = collection.find(
+        {"status": constants.ETLStatus.EXTRACTION_PENDING.value},
+        {"study_id": 1, "dataset_id": 1, "file_name": 1, "_id": 0},
+    )
+    return list(pending_docs)
+
+
+def update_etl_date(
+    study_id: str, dataset_id: str, file_name: str, status: constants.ETLStatus
+):
+    """
+    Updates the etl date, study_id, dataset_id, and status in the MongoDB document.
     """
     current_date = datetime.utcnow()
     collection.update_one(
-        {"study_id": study_id, "dataset_id": dataset_id},
+        {"study_id": study_id, "dataset_id": dataset_id, "file_name": file_name},
         {"$set": {"date": current_date, "status": status.value}},
         upsert=True,
     )
 
 
-def get_last_sync_date(study_id: str, dataset_id: str):
+def get_last_etl_date(study_id: str, dataset_id: str, file_name: str):
     """
-    Retrieves the last sync date and status for a specific study_id
+    Retrieves the last etl date and status for a specific study_id
     and dataset_id from the MongoDB document.
     """
     document = collection.find_one(
-        {"study_id": study_id, "dataset_id": dataset_id},
+        {"study_id": study_id, "dataset_id": dataset_id, "file_name": file_name},
         {"date": 1, "status": 1, "_id": 0},
     )
     if document:
@@ -142,13 +115,8 @@ def get_last_sync_date(study_id: str, dataset_id: str):
         return None, None
 
 
-def get_files_to_etl() -> list:
-    files_to_etl = []
+def get_files_to_etl() -> None:
     ftp = connect_ftp()
-
-    # if not os.path.exists(constants.LOCAL_PATH):
-    #     print(f"Creating local path {constants.LOCAL_PATH}")
-    #     os.makedirs(constants.LOCAL_PATH)
 
     base_path = constants.FTP_BASE_PATH
     ftp.cwd(base_path)
@@ -182,12 +150,18 @@ def get_files_to_etl() -> list:
                             if len(file_info.split()) >= 8:
                                 modified_time_str = " ".join(file_info.split()[5:8])
                                 if modified_time_str:
-                                    if ":" in modified_time_str:  # This indicates that the time is included, but the year is missing
+                                    if ":" in modified_time_str:
+                                        # This indicates that the time is included,
+                                        # but the year is missing
                                         # Append the current year to the time string
                                         modified_time_str += f" {datetime.now().year}"
-                                        modified_time = datetime.strptime(modified_time_str, "%b %d %H:%M %Y")
+                                        modified_time = datetime.strptime(
+                                            modified_time_str, "%b %d %H:%M %Y"
+                                        )
                                     else:
-                                        modified_time = datetime.strptime(modified_time_str, "%b %d %Y")
+                                        modified_time = datetime.strptime(
+                                            modified_time_str, "%b %d %Y"
+                                        )
                                 else:
                                     raise ValueError("Empty modified time string")
                             else:
@@ -195,42 +169,38 @@ def get_files_to_etl() -> list:
                                     "File info does not contain enough parts"
                                 )
 
-                            last_sync_date, last_status = get_last_sync_date(
-                                qts_dir, qtd_dir
+                            last_etl_date, last_status = get_last_etl_date(
+                                qts_dir, qtd_dir, file_name
                             )
                             # print(
                             #     f"""
                             #     For {qts_dir}/{qtd_dir}
-                            #     Last sync date: {last_sync_date}
+                            #     Last etl date: {last_etl_date}
                             #     Status: {last_status}
                             #     """
                             # )
 
-                            if last_sync_date is None or modified_time > last_sync_date:
-                                update_sync_date(
-                                    qts_dir, qtd_dir, constants.SyncStatus.EXTRACTION_IN_PROGRESS
+                            if (
+                                last_etl_date is None
+                                or modified_time > last_etl_date
+                                or last_status
+                                != constants.ETLStatus.EXTRACTION_COMPLETED
+                            ):
+                                update_etl_date(
+                                    qts_dir,
+                                    qtd_dir,
+                                    file_name,
+                                    constants.ETLStatus.EXTRACTION_PENDING,
                                 )
-
-                                files_to_etl.append(
-                                    (
-                                        qts_dir,
-                                        qtd_dir, 
-                                        file_name,
-                                    )
-                                )
-                                # extract_data(ftp, file_name, qts_dir)
-                                # update_sync_date(
-                                #     qts_dir, qtd_dir, constants.SyncStatus.EXTRACTION_COMPLETED
-                                # )
-                                # print("Sleeping...")
-                                # time.sleep(60)
                         except ValueError as ve:
                             print(f"Skipping file {file_name} due to error: {ve}")
-                            update_sync_date(
-                                qts_dir, qtd_dir, constants.SyncStatus.EXTRACTION_FAILED
+                            update_etl_date(
+                                qts_dir,
+                                qtd_dir,
+                                file_name,
+                                constants.ETLStatus.EXTRACTION_FAILED,
                             )
                             continue
 
                     ftp.cwd("..")
     ftp.quit()
-    return files_to_etl
