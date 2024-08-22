@@ -11,7 +11,7 @@ from pyspark.sql.types import (
     StructType,
 )
 
-from data_extraction import data_extraction
+from utils import utils
 from utils import constants
 
 
@@ -21,22 +21,22 @@ def process_file(study_id, dataset_id, file_name):
     file_path_remote = f"{constants.FTP_BASE_PATH}{study_id}/{dataset_id}/{file_name}"
     file_path_local = os.path.join(constants.LOCAL_PATH, file_name)
     try:
-        data_extraction.update_etl_date(
+        utils.update_etl_date(
             study_id, dataset_id, file_name, constants.ETLStatus.DOWNLOAD_IN_PROGRESS
         )
-        data_extraction.download_file(ftp, file_path_remote, file_path_local)
-        data_extraction.update_etl_date(
+        utils.download_file(ftp, file_path_remote, file_path_local)
+        utils.update_etl_date(
             study_id, dataset_id, file_name, constants.ETLStatus.DOWNLOAD_COMPLETED
         )
     except Exception as e:
         print(f"Failed downloading {study_id}/{dataset_id}/{file_name}: {e}")
-        data_extraction.update_etl_date(
+        utils.update_etl_date(
             study_id, dataset_id, file_name, constants.ETLStatus.DOWNLOAD_FAILED
         )
         raise
 
     try:
-        data_extraction.update_etl_date(
+        utils.update_etl_date(
             study_id, dataset_id, file_name, constants.ETLStatus.EXTRACTION_IN_PROGRESS
         )
         df = spark.read.csv(file_path_local, sep="\t", header=True, schema=schema)
@@ -47,12 +47,12 @@ def process_file(study_id, dataset_id, file_name):
         df = df.withColumn("study_id", lit(study_id))
         df = df.withColumn("dataset_id", lit(dataset_id))
         df = df.withColumn("file_name", lit(file_name))
-        data_extraction.update_etl_date(
+        utils.update_etl_date(
             study_id, dataset_id, file_name, constants.ETLStatus.EXTRACTION_COMPLETED
         )
     except Exception as e:
         print(f"Failed processing {study_id}/{dataset_id}/{file_name}: {e}")
-        data_extraction.update_etl_date(
+        utils.update_etl_date(
             study_id, dataset_id, constants.ETLStatus.EXTRACTION_FAILED
         )
         raise
@@ -63,7 +63,7 @@ def process_file(study_id, dataset_id, file_name):
         df.write.format("mongodb").mode("append").option(
             "database", constants.MONGO_DB
         ).option("collection", collection_name).save()
-        data_extraction.update_etl_date(
+        utils.update_etl_date(
             study_id, dataset_id, file_name, constants.ETLStatus.MONGO_SAVE_COMPLETED
         )
         print(f"Done saving {study_id}/{dataset_id}/{file_name} --> {collection_name}")
@@ -78,7 +78,7 @@ def process_file(study_id, dataset_id, file_name):
         Failed Saving {study_id}/{dataset_id}/{file_name} --> {collection_name}: {e}
         """
         )
-        data_extraction.update_etl_date(
+        utils.update_etl_date(
             study_id, dataset_id, file_name, constants.ETLStatus.MONGO_SAVE_FAILED
         )
         raise
@@ -142,10 +142,10 @@ schema = StructType(
     ]
 )
 
-ftp = data_extraction.connect_ftp()
-data_extraction.get_files_to_etl()
+ftp = utils.connect_ftp()
+utils.get_files_to_etl()
 
-files_pending = data_extraction.get_pending_extraction_docs()
+files_pending = utils.get_pending_extraction_docs()
 
 process_files_concurrently(files_pending)
 
