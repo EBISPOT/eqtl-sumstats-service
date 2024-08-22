@@ -1,11 +1,9 @@
 import ftplib
-import gzip
 import os
 from datetime import datetime
 
 from pymongo import MongoClient
 
-from kafka import KafkaProducer
 from utils import constants
 
 # MongoDB connection setup
@@ -47,32 +45,6 @@ def connect_ftp():
         raise
 
 
-def read_file_in_chunks(file_path, chunk_size=1024):
-    with gzip.open(file_path, "rt", encoding="utf-8") as f:
-        headers = f.readline().strip().split("\t")
-        while True:
-            lines = f.readlines(chunk_size)
-            if not lines:
-                break
-            for line in lines:
-                yield headers, line.strip().split("\t")
-
-
-def send_to_kafka(data, key):
-    producer = KafkaProducer(
-        bootstrap_servers=constants.BOOTSTRAP_SERVERS,
-        api_version=(0, 11, 5),
-        key_serializer=str.encode,
-        value_serializer=str.encode,
-    )
-    producer.send(
-        constants.KAFKA_TOPIC,
-        key=key,
-        value=data,
-    )
-    producer.flush()
-
-
 def get_pending_extraction_docs():
     """
     Returns all documents from the MongoDB collection where
@@ -109,98 +81,74 @@ def get_last_etl_date(study_id: str, dataset_id: str, file_name: str):
         {"study_id": study_id, "dataset_id": dataset_id, "file_name": file_name},
         {"date": 1, "status": 1, "_id": 0},
     )
-    if document:
-        return document.get("date"), document.get("status")
+    return (document.get("date"), document.get("status")) if document else (None, None)
+
+
+def parse_modified_time(file_info):
+    parts = file_info.split()
+    if len(parts) < 8:
+        raise ValueError("File info does not contain enough parts")
+
+    modified_time_str = " ".join(parts[5:8])
+    if not modified_time_str:
+        raise ValueError("Empty modified time string")
+
+    if ":" in modified_time_str:
+        modified_time_str += f" {datetime.now().year}"
+        return datetime.strptime(modified_time_str, "%b %d %H:%M %Y")
     else:
-        return None, None
+        return datetime.strptime(modified_time_str, "%b %d %Y")
 
 
-def get_files_to_etl() -> None:
+def should_process_file(last_etl_date, modified_time, last_status):
+    return (
+        last_etl_date is None
+        or modified_time > last_etl_date
+        or last_status != constants.ETLStatus.EXTRACTION_COMPLETED
+    )
+
+
+def process_file(ftp, qts_dir, qtd_dir, file_info):
+    file_name = file_info.split()[-1]
+    if not file_name.endswith(".gz"):
+        return
+
+    try:
+        modified_time = parse_modified_time(file_info)
+        last_etl_date, last_status = get_last_etl_date(qts_dir, qtd_dir, file_name)
+
+        if should_process_file(last_etl_date, modified_time, last_status):
+            update_etl_date(
+                qts_dir, qtd_dir, file_name, constants.ETLStatus.EXTRACTION_PENDING
+            )
+    except ValueError as ve:
+        print(f"Skipping file {file_name} due to error: {ve}")
+        update_etl_date(
+            qts_dir, qtd_dir, file_name, constants.ETLStatus.EXTRACTION_FAILED
+        )
+
+
+def get_files_to_etl():
     ftp = connect_ftp()
+    ftp.cwd(constants.FTP_BASE_PATH)
 
-    base_path = constants.FTP_BASE_PATH
-    ftp.cwd(base_path)
-    qts_dirs = list_files(ftp, base_path)
-
-    for qts_dir_info in qts_dirs:
-
+    for qts_dir_info in list_files(ftp, constants.FTP_BASE_PATH):
         qts_dir = qts_dir_info.split()[-1]
-        if qts_dir.startswith("QTS"):
-            qts_path = os.path.join(base_path, qts_dir)
-            qts_files = list_files(ftp, qts_path)
+        if not qts_dir.startswith("QTS"):
+            continue
 
-            for qtd_dir_info in qts_files:
-                qtd_dir = qtd_dir_info.split()[-1]
-                if qtd_dir.startswith("QTD"):
-                    qtd_path = os.path.join(qts_path, qtd_dir)
-                    ftp.cwd(qtd_path)
-                    files = list_files(ftp, qtd_path)
+        qts_path = os.path.join(constants.FTP_BASE_PATH, qts_dir)
+        for qtd_dir_info in list_files(ftp, qts_path):
+            qtd_dir = qtd_dir_info.split()[-1]
+            if not qtd_dir.startswith("QTD"):
+                continue
 
-                    for file_info in files:
-                        # print(f"{file_info}")
+            qtd_path = os.path.join(qts_path, qtd_dir)
+            ftp.cwd(qtd_path)
 
-                        file_name = file_info.split()[-1]
-                        # print(f"{file_name}")
+            for file_info in list_files(ftp, qtd_path):
+                process_file(ftp, qts_dir, qtd_dir, file_info)
 
-                        if not file_name.endswith(".gz"):
-                            # print('Skipping as file extension is not .gz')
-                            continue
+            ftp.cwd("..")
 
-                        try:
-                            if len(file_info.split()) >= 8:
-                                modified_time_str = " ".join(file_info.split()[5:8])
-                                if modified_time_str:
-                                    if ":" in modified_time_str:
-                                        # This indicates that the time is included,
-                                        # but the year is missing
-                                        # Append the current year to the time string
-                                        modified_time_str += f" {datetime.now().year}"
-                                        modified_time = datetime.strptime(
-                                            modified_time_str, "%b %d %H:%M %Y"
-                                        )
-                                    else:
-                                        modified_time = datetime.strptime(
-                                            modified_time_str, "%b %d %Y"
-                                        )
-                                else:
-                                    raise ValueError("Empty modified time string")
-                            else:
-                                raise ValueError(
-                                    "File info does not contain enough parts"
-                                )
-
-                            last_etl_date, last_status = get_last_etl_date(
-                                qts_dir, qtd_dir, file_name
-                            )
-                            # print(
-                            #     f"""
-                            #     For {qts_dir}/{qtd_dir}
-                            #     Last etl date: {last_etl_date}
-                            #     Status: {last_status}
-                            #     """
-                            # )
-
-                            if (
-                                last_etl_date is None
-                                or modified_time > last_etl_date
-                                or last_status
-                                != constants.ETLStatus.EXTRACTION_COMPLETED
-                            ):
-                                update_etl_date(
-                                    qts_dir,
-                                    qtd_dir,
-                                    file_name,
-                                    constants.ETLStatus.EXTRACTION_PENDING,
-                                )
-                        except ValueError as ve:
-                            print(f"Skipping file {file_name} due to error: {ve}")
-                            update_etl_date(
-                                qts_dir,
-                                qtd_dir,
-                                file_name,
-                                constants.ETLStatus.EXTRACTION_FAILED,
-                            )
-                            continue
-
-                    ftp.cwd("..")
     ftp.quit()
