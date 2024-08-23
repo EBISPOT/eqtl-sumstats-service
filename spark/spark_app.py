@@ -11,92 +11,67 @@ from pyspark.sql.types import (
     StructType,
 )
 
-from utils import utils
-from utils import constants
+from utils import constants, utils
 
 
 def process_file(study_id, dataset_id, file_name):
-    print(f"""---filepath: {file_name}---""")
-
     file_path_remote = f"{constants.FTP_BASE_PATH}{study_id}/{dataset_id}/{file_name}"
     file_path_local = os.path.join(constants.LOCAL_PATH, file_name)
+
+    def update_etl_status(status):
+        utils.update_etl_date(study_id, dataset_id, file_name, status)
+
     try:
-        utils.update_etl_date(
-            study_id, dataset_id, file_name, constants.ETLStatus.DOWNLOAD_IN_PROGRESS
-        )
-        utils.download_file(ftp, file_path_remote, file_path_local)
-        utils.update_etl_date(
-            study_id, dataset_id, file_name, constants.ETLStatus.DOWNLOAD_COMPLETED
-        )
+        update_etl_status(constants.ETLStatus.DOWNLOAD_IN_PROGRESS)
+        # TODO: if local, then use ftp
+        # if hpc, then copy to datamover node
+        utils.download_file(file_path_remote, file_path_local)
+        update_etl_status(constants.ETLStatus.DOWNLOAD_COMPLETED)
     except Exception as e:
         print(f"Failed downloading {study_id}/{dataset_id}/{file_name}: {e}")
-        utils.update_etl_date(
-            study_id, dataset_id, file_name, constants.ETLStatus.DOWNLOAD_FAILED
-        )
+        update_etl_status(constants.ETLStatus.DOWNLOAD_FAILED)
         raise
 
     try:
-        utils.update_etl_date(
-            study_id, dataset_id, file_name, constants.ETLStatus.EXTRACTION_IN_PROGRESS
-        )
+        update_etl_status(constants.ETLStatus.EXTRACTION_IN_PROGRESS)
         df = spark.read.csv(file_path_local, sep="\t", header=True, schema=schema)
-        # TODO: remove this
-        df = df.limit(10)
+        # DEV: add in local
+        # df = df.limit(10)
 
-        print(f"Processing {study_id}/{dataset_id}/{file_name}")
         df = df.withColumn("study_id", lit(study_id))
         df = df.withColumn("dataset_id", lit(dataset_id))
         df = df.withColumn("file_name", lit(file_name))
-        utils.update_etl_date(
-            study_id, dataset_id, file_name, constants.ETLStatus.EXTRACTION_COMPLETED
-        )
+        update_etl_status(constants.ETLStatus.EXTRACTION_COMPLETED)
     except Exception as e:
         print(f"Failed processing {study_id}/{dataset_id}/{file_name}: {e}")
-        utils.update_etl_date(
-            study_id, dataset_id, constants.ETLStatus.EXTRACTION_FAILED
-        )
+        update_etl_status(constants.ETLStatus.EXTRACTION_FAILED)
         raise
 
     try:
         collection_name = f"study_{study_id}"
-        print(f"Saving {study_id}/{dataset_id}/{file_name} --> {collection_name}")
         df.write.format("mongodb").mode("append").option(
             "database", constants.MONGO_DB
         ).option("collection", collection_name).save()
-        utils.update_etl_date(
-            study_id, dataset_id, file_name, constants.ETLStatus.MONGO_SAVE_COMPLETED
-        )
+        update_etl_status(constants.ETLStatus.MONGO_SAVE_COMPLETED)
         print(f"Done saving {study_id}/{dataset_id}/{file_name} --> {collection_name}")
-        print(
-            f"""
-        Done processing {study_id}/{dataset_id}/{file_name} --> {collection_name}
-        """
-        )
     except Exception as e:
-        print(
-            f"""
-        Failed Saving {study_id}/{dataset_id}/{file_name} --> {collection_name}: {e}
-        """
-        )
-        utils.update_etl_date(
-            study_id, dataset_id, file_name, constants.ETLStatus.MONGO_SAVE_FAILED
-        )
+        print(f"Failed saving to MongoDB {study_id}/{dataset_id}/{file_name}: {e}")
+        update_etl_status(constants.ETLStatus.MONGO_SAVE_FAILED)
         raise
-
-    try:
-        os.remove(file_path_local)
-        print(f"File {file_path_local} has been removed after processing.")
-    except OSError as e:
-        print(f"Error removing file {file_path_local}: {e}")
+    finally:
+        try:
+            os.remove(file_path_local)
+            print(f"File {file_path_local} removed after processing.")
+        except OSError as e:
+            print(f"Error removing file {file_path_local}: {e}")
 
 
 def process_files_concurrently(files_to_etl):
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        # Adjust max_workers based on the available resources
         future_to_file = {
             executor.submit(
                 process_file, f["study_id"], f["dataset_id"], f["file_name"]
-            ): (f["study_id"], f["dataset_id"], f["file_name"])
+            ): f
             for f in files_to_etl
         }
 
@@ -108,7 +83,6 @@ def process_files_concurrently(files_to_etl):
                 print(f"{file_info} generated an exception: {exc}")
 
 
-# Initialize SparkSession
 spark = (
     SparkSession.builder.appName("SparkApp")
     .config(
@@ -118,6 +92,8 @@ spark = (
     .getOrCreate()
 )
 
+# TODO: fix schema for .permuted and .cc files
+# or perhaps we can skip them - something to discuss with Kaur
 schema = StructType(
     [
         StructField("molecular_trait_id", StringType(), True),
@@ -142,11 +118,9 @@ schema = StructType(
     ]
 )
 
-ftp = utils.connect_ftp()
 utils.get_files_to_etl()
-
 files_pending = utils.get_pending_extraction_docs()
-
 process_files_concurrently(files_pending)
 
-print("=== ETL Process Complete ===")
+# TODO: improve logging
+print("ETL Process Complete")
