@@ -1,5 +1,8 @@
+import concurrent.futures
+import os
+
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, concat, from_json, lit
+from pyspark.sql.functions import lit
 from pyspark.sql.types import (
     FloatType,
     IntegerType,
@@ -8,12 +11,79 @@ from pyspark.sql.types import (
     StructType,
 )
 
-from utils import constants
+from utils import constants, utils
 
-# TODO: clean up debug logs
-print("=== START ===")
 
-spark_session = (
+def process_file(study_id, dataset_id, file_name):
+    file_path_remote = f"{constants.FTP_BASE_PATH}{study_id}/{dataset_id}/{file_name}"
+    file_path_local = os.path.join(constants.LOCAL_PATH, file_name)
+
+    def update_etl_status(status):
+        utils.update_etl_date(study_id, dataset_id, file_name, status)
+
+    try:
+        update_etl_status(constants.ETLStatus.DOWNLOAD_IN_PROGRESS)
+        # TODO: if local, then use ftp
+        # if hpc, then copy to datamover node
+        utils.download_file(file_path_remote, file_path_local)
+        update_etl_status(constants.ETLStatus.DOWNLOAD_COMPLETED)
+    except Exception as e:
+        print(f"Failed downloading {study_id}/{dataset_id}/{file_name}: {e}")
+        update_etl_status(constants.ETLStatus.DOWNLOAD_FAILED)
+        raise
+
+    try:
+        update_etl_status(constants.ETLStatus.EXTRACTION_IN_PROGRESS)
+        df = spark.read.csv(file_path_local, sep="\t", header=True, schema=schema)
+        # DEV: add in local
+        # df = df.limit(10)
+
+        df = df.withColumn("study_id", lit(study_id))
+        df = df.withColumn("dataset_id", lit(dataset_id))
+        df = df.withColumn("file_name", lit(file_name))
+        update_etl_status(constants.ETLStatus.EXTRACTION_COMPLETED)
+    except Exception as e:
+        print(f"Failed processing {study_id}/{dataset_id}/{file_name}: {e}")
+        update_etl_status(constants.ETLStatus.EXTRACTION_FAILED)
+        raise
+
+    try:
+        collection_name = f"study_{study_id}"
+        df.write.format("mongodb").mode("append").option(
+            "database", constants.MONGO_DB
+        ).option("collection", collection_name).save()
+        update_etl_status(constants.ETLStatus.MONGO_SAVE_COMPLETED)
+        print(f"Done saving {study_id}/{dataset_id}/{file_name} --> {collection_name}")
+    except Exception as e:
+        print(f"Failed saving to MongoDB {study_id}/{dataset_id}/{file_name}: {e}")
+        update_etl_status(constants.ETLStatus.MONGO_SAVE_FAILED)
+        raise
+    finally:
+        try:
+            os.remove(file_path_local)
+            print(f"File {file_path_local} removed after processing.")
+        except OSError as e:
+            print(f"Error removing file {file_path_local}: {e}")
+
+
+def process_files_concurrently(files_to_etl):
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        future_to_file = {
+            executor.submit(
+                process_file, f["study_id"], f["dataset_id"], f["file_name"]
+            ): f
+            for f in files_to_etl
+        }
+
+        for future in concurrent.futures.as_completed(future_to_file):
+            file_info = future_to_file[future]
+            try:
+                future.result()
+            except Exception as exc:
+                print(f"{file_info} generated an exception: {exc}")
+
+
+spark = (
     SparkSession.builder.appName("SparkApp")
     .config(
         "spark.mongodb.write.connection.uri",
@@ -22,11 +92,11 @@ spark_session = (
     .getOrCreate()
 )
 
-# Define the schema for the JSON data
+# TODO: fix schema for .permuted and .cc files
+# or perhaps we can skip them - something to discuss with Kaur
 schema = StructType(
     [
         StructField("molecular_trait_id", StringType(), True),
-        StructField("molecular_trait_object_id", StringType(), True),
         StructField("chromosome", StringType(), True),
         StructField("position", IntegerType(), True),
         StructField("ref", StringType(), True),
@@ -38,58 +108,19 @@ schema = StructType(
         StructField("beta", FloatType(), True),
         StructField("se", FloatType(), True),
         StructField("type", StringType(), True),
-        StructField("aan", StringType(), True),
+        StructField("ac", StringType(), True),
+        StructField("an", StringType(), True),
         StructField("r2", StringType(), True),
+        StructField("molecular_trait_object_id", StringType(), True),
         StructField("gene_id", StringType(), True),
         StructField("median_tpm", FloatType(), True),
         StructField("rsid", StringType(), True),
-        StructField("study_id", StringType(), True),
     ]
 )
-# print("schema")
-# print(schema)
 
-# Read from Kafka topic
-df = (
-    spark_session.readStream.format("kafka")
-    .option("kafka.bootstrap.servers", constants.BOOTSTRAP_SERVERS)
-    .option("subscribe", constants.KAFKA_TOPIC_TRANSFORMED)
-    .option("startingOffsets", "earliest")
-    .load()
-)
+utils.get_files_to_etl()
+files_pending = utils.get_pending_extraction_docs()
+process_files_concurrently(files_pending)
 
-# Parse the Kafka value column into a JSON structure
-parsed_df = df.selectExpr("CAST(value AS STRING) as json_value")
-json_df = parsed_df.select(from_json(col("json_value"), schema).alias("data")).select(
-    "data.*"
-)
-
-# Dynamic collection name based on study_id
-json_df = json_df.withColumn("collection_name", concat(lit("study_"), col("study_id")))
-# print("json_df")
-# print(json_df)
-
-
-# Write to MongoDB using the collection name from the batch DataFrame
-def write_to_mongo_collection(batch_df, batch_id):
-    for collection_name in batch_df.select("collection_name").distinct().collect():
-        collection_name = collection_name["collection_name"]
-
-        # Write each micro-batch to the corresponding collection
-        batch_df.filter(batch_df.collection_name == collection_name).write.format(
-            "mongodb"
-        ).mode("append").option("database", constants.MONGO_DB).option(
-            "collection", collection_name
-        ).save()
-
-
-# Apply the write operation to each micro-batch
-query = (
-    json_df.writeStream.foreachBatch(write_to_mongo_collection)
-    .option("checkpointLocation", "/tmp/checkpoints")
-    .start()
-)
-
-print("=== END ===")
-
-query.awaitTermination()
+# TODO: improve logging
+print("ETL Process Complete")

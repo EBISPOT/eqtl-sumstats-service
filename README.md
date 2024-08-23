@@ -1,32 +1,23 @@
 # eQTL Summary Statistics Service
 
-This project implements an ETL pipeline for extracting, transforming, and loading eQTL summary statistics data into a MongoDB database. The pipeline is built using Python and integrates various technologies like Apache Kafka, Apache Spark, and MongoDB.
+## Overview
+
+This project provides an ETL (Extract, Transform, Load) pipeline built using Apache Spark, which processes data files, extracts information, and loads it into a MongoDB database. The pipeline runs in a Dockerized environment, utilizing multiple services including MongoDB and Spark.
 
 ## Project Structure
 
 ```
-EQTL-SUMSTATS-SERVICE/
-│
-├── data_extraction/
-│   ├── __init__.py
-│   ├── data_extraction.py
-│   ├── Dockerfile
-│   └── requirements.txt
-├── env_formatlint/
-├── kafka/
-│   ├── __init__.py
-│   ├── data_transformation.py
-│   ├── Dockerfile
-│   └── requirements.txt
-├── mongo/
-├── spark/
+.
+├── spark
 │   ├── __init__.py
 │   ├── Dockerfile
 │   ├── log4j.properties
-│   └── spark_app.py
-├── utils/
+│   ├── spark_app.py
+│── utils
 │   ├── __init__.py
-│   └── constants.py
+│   ├── constants.py
+│   ├── requirements.txt
+│   └── utils.py
 ├── .gitignore
 ├── docker-compose.yml
 ├── format-lint
@@ -35,85 +26,62 @@ EQTL-SUMSTATS-SERVICE/
 └── requirements.dev.txt
 ```
 
-## Prerequisites
+### Key Files and Directories
+
+- **spark/**: Contains the main Spark application and supporting files.
+  - **spark_app.py**: The main script that runs the ETL process.
+  - **Dockerfile**: Defines the Docker image for the Spark application.
+  - **log4j.properties**: Configuration file for logging in Spark.
+- **utils/**: Utility functions and constants used in the ETL process.  
+- **docker-compose.yml**: Orchestrates the Docker containers for MongoDB, Spark Master, Spark Worker, and the Spark application.
+
+## Getting Started
+
+### Prerequisites
 
 - Docker
 - Docker Compose
 - Python 3.8 or higher
 - Java 8 or higher (for Apache Spark)
 
-## Installation
+### Setup
 
-1. **Clone the repository**:
+1. Clone this repository:
 
    ```bash
-   git clone https://github.com/yourusername/eqtl-sumstats-service.git
+   git clone https://github.com/EBISPOT/eqtl-sumstats-service.git
    cd eqtl-sumstats-service
    ```
 
-2. **Build Docker images**:
+2. Build and start the Docker containers:
+
    ```bash
    docker-compose build
-   ```
-
-## Configuration
-
-Configure the necessary environment variables and settings in the `.env` file or directly in the `docker-compose.yml` file.
-
-## Usage
-
-### Running the Pipeline
-
-1. **Start the services**:
-
-   ```bash
    docker-compose up
    ```
 
-2. **Data Extraction**:
-   The `data_extraction` service downloads and extracts data from the specified FTP server.
+   This will pull the necessary Docker images, build the custom Spark application image, and start the services (MongoDB, Spark Master, Spark Worker, Spark Application).
 
-3. **Data Transformation**:
-   The `kafka` service reads data from Kafka topics, processes it using Spark, and prepares it for loading into MongoDB.
+### Running the ETL Pipeline
 
-4. **Data Loading**:
-   The transformed data is loaded into MongoDB for storage and querying.
+The ETL pipeline is automatically triggered when the Spark application container starts. The `spark_app.py` script performs the following tasks:
 
-### Components
+1. **Download**: Fetches data files from a remote FTP server.
+2. **Process**: Parses and transforms the data using Spark.
+3. **Load**: Writes the processed data into a MongoDB collection.
 
-#### Data Extraction
+### Configuration
 
-Located in the `data_extraction` directory. This component handles downloading and extracting eQTL data from an FTP server.
+- **FTP Configuration**: FTP connection details are defined in the `constants.py` file.
+- **MongoDB Configuration**: MongoDB connection URI and database details are also specified in `constants.py`.
+- **Spark Configuration**: Custom configurations for the Spark session, including MongoDB integration, are set in `spark_app.py`.
 
-- **data_extraction.py**: Main script for data extraction.
-- **Dockerfile**: Docker configuration for the data extraction service.
-- **requirements.txt**: Python dependencies for data extraction.
 
-#### Kafka
+## Development
 
-Located in the `kafka` directory. This component handles data transformation using Apache Kafka and Spark.
+It might be a good idea to limit dataframes to 10 rows in spark. Otherwise it might be a problem in your local development. One can search for `DEV` for such points. 
 
-- **data_transformation.py**: Main script for data transformation.
-- **Dockerfile**: Docker configuration for the Kafka service.
-- **requirements.txt**: Python dependencies for Kafka and Spark.
-
-#### Spark
-
-Located in the `spark` directory. This component handles processing of data using Apache Spark.
-
-- **spark_app.py**: Main script for Spark data processing.
-- **Dockerfile**: Docker configuration for the Spark service.
-- **log4j.properties**: Logging configuration for Spark.
-
-#### Utils
-
-Located in the `utils` directory. Contains utility functions and constants used across the project.
-
-- **constants.py**: Defines constant values used in the project.
-
-## Misc.
-
-### Format & Lint
+### Linting and Formatting
 
 Create a virtual env for format & lint in which you can install the required Python packages using:
 
