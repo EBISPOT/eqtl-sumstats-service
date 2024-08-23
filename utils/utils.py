@@ -1,6 +1,8 @@
 import ftplib
 import os
+import socket
 from datetime import datetime
+from time import sleep
 
 from pymongo import MongoClient
 
@@ -18,31 +20,41 @@ def list_files(ftp, path):
     return files
 
 
-def download_file(ftp, remote_path, local_path):
-    try:
-        # Ensure the directory exists
-        local_dir = os.path.dirname(local_path)
-        os.makedirs(local_dir, exist_ok=True)
-
-        print(f"Downloading {remote_path} ==> {local_path}")
-        with open(local_path, "wb") as f:
-            ftp.retrbinary(f"RETR {remote_path}", f.write)
-    except Exception as e:
-        print(f"Failed downloading {remote_path} ==> {local_path}: {e}")
-        raise
-
-
-def connect_ftp():
-    try:
-        print(f"Connecting to {constants.FTP_SERVER}...")
-        ftp = ftplib.FTP(constants.FTP_SERVER)
+def download_file(remote_path, local_path, retries=3):
+    with ftplib.FTP(constants.FTP_SERVER) as ftp:
         ftp.login(user=constants.FTP_USER, passwd=constants.FTP_PASS)
-        print(f"Connection to {constants.FTP_SERVER} successful")
-        return ftp
-    except ftplib.error_perm as e:
-        print(f"Connection to {constants.FTP_SERVER} failed")
-        print(f"FTP error: {e}")
-        raise
+
+        try:
+            # Ensure the directory exists
+            local_dir = os.path.dirname(local_path)
+            os.makedirs(local_dir, exist_ok=True)
+
+            for attempt in range(retries):
+                try:
+                    print(
+                        f"""
+                        Downloading {remote_path}
+                        ==> {local_path} (Attempt {attempt + 1})
+                        """
+                    )
+                    with open(local_path, "wb") as f:
+                        ftp.retrbinary(f"RETR {remote_path}", f.write, blocksize=1024)
+                    print(f"Successfully downloaded {remote_path} ==> {local_path}")
+                    break
+                except (ftplib.error_perm, socket.error) as e:
+                    print(
+                        f"""
+                        Failed downloading {remote_path}
+                        ==> {local_path} (Attempt {attempt + 1}): {e}
+                        """
+                    )
+                    if attempt < retries - 1:
+                        sleep(5 * attempt)
+                    else:
+                        raise
+        except Exception as e:
+            print(f"Error: {e}")
+            raise
 
 
 def get_pending_extraction_docs():
@@ -129,26 +141,25 @@ def process_file(ftp, qts_dir, qtd_dir, file_info):
 
 
 def get_files_to_etl():
-    ftp = connect_ftp()
-    ftp.cwd(constants.FTP_BASE_PATH)
+    with ftplib.FTP(constants.FTP_SERVER) as ftp:
+        ftp.login(user=constants.FTP_USER, passwd=constants.FTP_PASS)
+        ftp.cwd(constants.FTP_BASE_PATH)
 
-    for qts_dir_info in list_files(ftp, constants.FTP_BASE_PATH):
-        qts_dir = qts_dir_info.split()[-1]
-        if not qts_dir.startswith("QTS"):
-            continue
-
-        qts_path = os.path.join(constants.FTP_BASE_PATH, qts_dir)
-        for qtd_dir_info in list_files(ftp, qts_path):
-            qtd_dir = qtd_dir_info.split()[-1]
-            if not qtd_dir.startswith("QTD"):
+        for qts_dir_info in list_files(ftp, constants.FTP_BASE_PATH):
+            qts_dir = qts_dir_info.split()[-1]
+            if not qts_dir.startswith("QTS"):
                 continue
 
-            qtd_path = os.path.join(qts_path, qtd_dir)
-            ftp.cwd(qtd_path)
+            qts_path = os.path.join(constants.FTP_BASE_PATH, qts_dir)
+            for qtd_dir_info in list_files(ftp, qts_path):
+                qtd_dir = qtd_dir_info.split()[-1]
+                if not qtd_dir.startswith("QTD"):
+                    continue
 
-            for file_info in list_files(ftp, qtd_path):
-                process_file(ftp, qts_dir, qtd_dir, file_info)
+                qtd_path = os.path.join(qts_path, qtd_dir)
+                ftp.cwd(qtd_path)
 
-            ftp.cwd("..")
+                for file_info in list_files(ftp, qtd_path):
+                    process_file(ftp, qts_dir, qtd_dir, file_info)
 
-    ftp.quit()
+                ftp.cwd("..")
