@@ -13,11 +13,11 @@ This project provides an ETL (Extract, Transform, Load) pipeline built using Apa
 │   ├── Dockerfile
 │   ├── log4j.properties
 │   ├── spark_app.py
-│   └── utils
-│       ├── __init__.py
-│       ├── constants.py
-│       ├── requirements.txt
-│       └── utils.py
+│── utils
+│   ├── __init__.py
+│   ├── constants.py
+│   ├── requirements.txt
+│   └── utils.py
 ├── .gitignore
 ├── docker-compose.yml
 ├── format-lint
@@ -32,8 +32,7 @@ This project provides an ETL (Extract, Transform, Load) pipeline built using Apa
   - **spark_app.py**: The main script that runs the ETL process.
   - **Dockerfile**: Defines the Docker image for the Spark application.
   - **log4j.properties**: Configuration file for logging in Spark.
-  - **utils/**: Utility functions and constants used in the ETL process.
-  
+- **utils/**: Utility functions and constants used in the ETL process.  
 - **docker-compose.yml**: Orchestrates the Docker containers for MongoDB, Spark Master, Spark Worker, and the Spark application.
 
 ## Getting Started
@@ -79,6 +78,8 @@ The ETL pipeline is automatically triggered when the Spark application container
 
 
 ## Development
+
+It might be a good idea to limit dataframes to 10 rows in spark. Otherwise it might be a problem in your local development. One can search for `DEV` for such points. 
 
 ### Linting and Formatting
 
