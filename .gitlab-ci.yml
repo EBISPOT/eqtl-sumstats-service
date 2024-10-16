@@ -1,0 +1,29 @@
+image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:latest
+
+stages:
+  - build
+  # - deploy
+
+services:
+  - docker:dind
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_HOST: tcp://docker:2375
+  CI_REGISTRY_IMAGE: ebispot/eqtl-sumstats-service
+
+
+# Build Docker image and push to container registry
+build:
+  stage: build
+  script:
+    - echo "$DOCKER_HUB_PASSWORD" > dhpw.txt
+    - docker login -u "${DOCKER_HUB_USER}" --password-stdin < dhpw.txt
+    - docker pull $CI_REGISTRY_IMAGE:latest || true
+    - docker build --network=host --cache-from $CI_REGISTRY_IMAGE:latest -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA .
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+  only:
+    - master
+    - dev
+
