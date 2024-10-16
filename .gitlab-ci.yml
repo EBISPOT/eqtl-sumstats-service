@@ -2,7 +2,6 @@ image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:latest
 
 stages:
   - build
-  # - deploy
 
 services:
   - docker:dind
@@ -11,19 +10,24 @@ variables:
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: ""
   DOCKER_HOST: tcp://docker:2375
-  CI_REGISTRY_IMAGE: ebispot/eqtl-sumstats-service
+  DOCKER_IMAGE: ebispot/eqtl-sumstats-service
 
-
-# Build Docker image and push to container registry
 build:
   stage: build
   script:
-    - echo "$DOCKER_HUB_PASSWORD" > dhpw.txt
-    - docker login -u "${DOCKER_HUB_USER}" --password-stdin < dhpw.txt
-    - docker pull $CI_REGISTRY_IMAGE:latest || true
-    - docker build --network=host --cache-from $CI_REGISTRY_IMAGE:latest -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA -f spark/Dockerfile .
-    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+    # Login to Docker Hub
+    - echo "$DOCKER_HUB_PASSWORD" | docker login -u "$DOCKER_HUB_USER" --password-stdin
+
+    # Build the new image
+    - docker build --network=host 
+      -t $DOCKER_IMAGE:$CI_COMMIT_SHA 
+      -t $DOCKER_IMAGE:latest 
+      -f spark/Dockerfile .
+
+    # Push both the SHA-tagged and latest images
+    - docker push $DOCKER_IMAGE:$CI_COMMIT_SHA
+    - docker push $DOCKER_IMAGE:latest
+
   only:
     - master
     - dev
-
