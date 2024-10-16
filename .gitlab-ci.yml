@@ -24,6 +24,9 @@ build:
     # Build the image using docker-compose
     - docker-compose build
 
+    # Tag the built image with CI_COMMIT_SHA
+    - docker tag $DOCKER_IMAGE:latest $DOCKER_IMAGE:$CI_COMMIT_SHA
+
     # Push both the SHA-tagged and latest images
     - docker push $DOCKER_IMAGE:$CI_COMMIT_SHA
     - docker push $DOCKER_IMAGE:latest
