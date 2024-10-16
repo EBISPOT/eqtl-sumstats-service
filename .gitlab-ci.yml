@@ -15,18 +15,21 @@ variables:
 build:
   stage: build
   script:
-    # Login to Docker Hub
     - echo "$DOCKER_HUB_PASSWORD" | docker login -u "$DOCKER_HUB_USER" --password-stdin
+
+    # Pull the latest image if it exists, don't fail if it doesn't
+    - docker pull $DOCKER_IMAGE:latest || true
 
     # Build the new image
     - docker build --network=host 
+      --cache-from $DOCKER_IMAGE:latest 
       -t $DOCKER_IMAGE:$CI_COMMIT_SHA 
       -t $DOCKER_IMAGE:latest 
       -f spark/Dockerfile .
 
     # Push both the SHA-tagged and latest images
-    - docker push $DOCKER_IMAGE:$CI_COMMIT_SHA
-    - docker push $DOCKER_IMAGE:latest
+    # - docker push $DOCKER_IMAGE:$CI_COMMIT_SHA
+    # - docker push $DOCKER_IMAGE:latest
 
   only:
     - master
