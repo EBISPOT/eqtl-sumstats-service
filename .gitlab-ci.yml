@@ -12,24 +12,25 @@ variables:
   DOCKER_HOST: tcp://docker:2375
   DOCKER_IMAGE: ebispot/eqtl-sumstats-service
 
+before_script:
+  - apk add --no-cache docker-compose
+
 build:
   stage: build
   script:
+    # Login to Docker Hub
     - echo "$DOCKER_HUB_PASSWORD" | docker login -u "$DOCKER_HUB_USER" --password-stdin
 
-    # Pull the latest image if it exists, don't fail if it doesn't
-    - docker pull $DOCKER_IMAGE:latest || true
+    # Build the image using docker-compose
+    - docker-compose build
 
-    # Build the new image
-    - docker build --network=host 
-      --cache-from $DOCKER_IMAGE:latest 
-      -t $DOCKER_IMAGE:$CI_COMMIT_SHA 
-      -t $DOCKER_IMAGE:latest 
-      -f spark/Dockerfile .
+    # Tag the built image
+    - docker tag eqtl-sumstats-service_app $DOCKER_IMAGE:$CI_COMMIT_SHA
+    - docker tag eqtl-sumstats-service_app $DOCKER_IMAGE:latest
 
     # Push both the SHA-tagged and latest images
-    # - docker push $DOCKER_IMAGE:$CI_COMMIT_SHA
-    # - docker push $DOCKER_IMAGE:latest
+    - docker push $DOCKER_IMAGE:$CI_COMMIT_SHA
+    - docker push $DOCKER_IMAGE:latest
 
   only:
     - master
