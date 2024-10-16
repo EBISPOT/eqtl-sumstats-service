@@ -24,10 +24,6 @@ build:
     # Build the image using docker-compose
     - docker-compose build
 
-    # Tag the built image
-    - docker tag eqtl-sumstats-service_app $DOCKER_IMAGE:$CI_COMMIT_SHA
-    - docker tag eqtl-sumstats-service_app $DOCKER_IMAGE:latest
-
     # Push both the SHA-tagged and latest images
     - docker push $DOCKER_IMAGE:$CI_COMMIT_SHA
     - docker push $DOCKER_IMAGE:latest
