@@ -37,12 +37,6 @@ services:
     build:
       context: .
       dockerfile: spark/Dockerfile
-      args:
-        NETWORK: host
-        CACHE_FROM: $DOCKER_IMAGE:latest
-      network: host
-      cache_from:
-        - $DOCKER_IMAGE:latest
     depends_on:
       mongo:
         condition: service_healthy

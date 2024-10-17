@@ -21,11 +21,15 @@ build:
     # Login to Docker Hub
     - echo "$DOCKER_HUB_PASSWORD" | docker login -u "$DOCKER_HUB_USER" --password-stdin
 
-    # Build the image using docker-compose with network and cache options
-    - docker-compose build --build-arg NETWORK=host --build-arg CACHE_FROM=$DOCKER_IMAGE:latest
+    # Build the image using docker-compose
+    - docker-compose build
 
-    # Tag the built image with CI_COMMIT_SHA
-    - docker tag $DOCKER_IMAGE:latest $DOCKER_IMAGE:$CI_COMMIT_SHA
+    # Check if the image was built successfully
+    - docker images
+
+    # Tag the built image with both latest and CI_COMMIT_SHA
+    - docker tag spark-app $DOCKER_IMAGE:latest
+    - docker tag spark-app $DOCKER_IMAGE:$CI_COMMIT_SHA
 
     # Push both the SHA-tagged and latest images
     - docker push $DOCKER_IMAGE:$CI_COMMIT_SHA
