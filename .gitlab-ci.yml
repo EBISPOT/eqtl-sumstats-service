@@ -28,8 +28,8 @@ build:
     - docker images
 
     # Tag the built image with both latest and CI_COMMIT_SHA
-    - docker tag spark-app $DOCKER_IMAGE:latest
-    - docker tag spark-app $DOCKER_IMAGE:$CI_COMMIT_SHA
+    - docker tag eqtl-sumstats-service-spark-app $DOCKER_IMAGE:latest
+    - docker tag eqtl-sumstats-service-spark-app $DOCKER_IMAGE:$CI_COMMIT_SHA
 
     # Push both the SHA-tagged and latest images
     - docker push $DOCKER_IMAGE:$CI_COMMIT_SHA
