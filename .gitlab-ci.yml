@@ -11,7 +11,7 @@ variables:
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: ""
   DOCKER_HOST: tcp://docker:2375
-  DOCKER_REPO: ebispot/eqtl-sumstats-service
+  DOCKER_IMAGE: ebispot/eqtl-sumstats-service
 
 before_script:
   - apk add --no-cache docker-compose
@@ -25,18 +25,16 @@ build:
     # Build the image using docker-compose
     - docker-compose build
 
-    # Check if the image was built successfully and get the image name
+    # Check if the image was built successfully
     - docker images
-    - BUILT_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "eqtl-sumstats-service-spark-app" | head -n 1)
-    - echo "Built image: $BUILT_IMAGE"
 
     # Tag the built image with both latest and CI_COMMIT_SHA
-    - docker tag $BUILT_IMAGE docker.io/$DOCKER_REPO:latest
-    - docker tag $BUILT_IMAGE docker.io/$DOCKER_REPO:$CI_COMMIT_SHA
+    - docker tag eqtl-sumstats-service-spark-app $DOCKER_IMAGE:latest
+    - docker tag eqtl-sumstats-service-spark-app $DOCKER_IMAGE:$CI_COMMIT_SHA
 
     # Push both the SHA-tagged and latest images
-    - docker push docker.io/$DOCKER_REPO:$CI_COMMIT_SHA
-    - docker push docker.io/$DOCKER_REPO:latest
+    - docker push $DOCKER_IMAGE:$CI_COMMIT_SHA
+    - docker push $DOCKER_IMAGE:latest
 
   only:
     - master
