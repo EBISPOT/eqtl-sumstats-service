@@ -2,6 +2,7 @@ image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:latest
 
 stages:
   - build
+  - deploy
 
 services:
   - docker:dind
@@ -40,3 +41,27 @@ build:
   only:
     - master
     - dev
+
+
+# Deploy the application using Singularity and Slurm
+deploy_staging:
+  image: alpine
+  stage: deploy
+  before_script:
+    - apk add openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+  script:
+    # # Copy the deployment script to the HPC
+    # - scp ./deployment/START_EQTL_INGEST.sh $WORKER_USER@$WORKER_SERVER_SLURM:$WORKER_DIR_DEV
+
+    # SSH into the HPC and run the deployment script
+    - ssh -o StrictHostKeyChecking=no "$WORKER_USER"@"$WORKER_SERVER_SLURM" "sbatch --mem=12000M --time=00:30:00 -D $WORKER_DIR_DEV -o deploy.out -e deploy.err --wrap='./START_EQTL_INGEST.sh $CI_COMMIT_SHA'"
+  tags:
+    - gwas
+  only:
+    - master
+    - dev
+
