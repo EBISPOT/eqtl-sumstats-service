@@ -25,11 +25,11 @@ build:
     - docker-compose build --build-arg NETWORK=host --build-arg CACHE_FROM=$DOCKER_IMAGE:latest
 
     # Tag the built image with CI_COMMIT_SHA
-    - docker tag $DOCKER_IMAGE:latest $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+    - docker tag $DOCKER_IMAGE:$CI_COMMIT_SHA
 
     # Push both the SHA-tagged and latest images
-    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
-    - docker push $DOCKER_IMAGE:latest
+    - docker push $DOCKER_IMAGE:$CI_COMMIT_SHA
+
 
   only:
     - master
