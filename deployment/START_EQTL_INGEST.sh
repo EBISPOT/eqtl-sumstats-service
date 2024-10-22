@@ -3,20 +3,15 @@
 COMMIT_SHA=$1
 
 # Load environment file and variables
-# TODO: fix env file
-#ENV_FILE="/hps/software/users/parkinso/spot/gwas/dev/scripts/cron/sumstats_service/cel_envs_sandbox"
+ENV_FILE="/hps/software/users/parkinso/spot/gwas/dev/scripts/cron/sumstats_service/cel_envs_sandbox_eqtl"
 LOG_LEVEL="info"
 MEM="8000"
 CLUSTER_QUEUE="standard"
-SINGULARITY_CACHEDIR="/nfs/public/rw/gwas/deposition/singularity_cache"
-SINGULARITY_REPO="ebispot"
-SINGULARITY_IMAGE="eqtl-sumstats-service"
 
-# TODO: fix env file
-#source $ENV_FILE
+source $ENV_FILE
 
 # Module commands for required tools
-lmod_cmd="module load singularity-3.6.4-gcc-9.3.0; module load openjdk-16.0.2-gcc-9.3.0; module load nextflow-21.10.6-gcc-9.3.0; module load curl-7.81.0-gcc-11.2.0; module load wget/1.21.3"
+lmod_cmd="module load singularity-3.8.7-gcc-11.2.0-jtpp6xx; module load openjdk-17.0.5_8-gcc-11.2.0-gsv4jnu; module load curl-7.85.0-gcc-11.2.0-zrzg677; module load wget/1.21.3"
 
 # Pull the Singularity image from the Docker registry
 if [ ! -z "${COMMIT_SHA}" ]; then
@@ -31,19 +26,19 @@ else
 fi
 
 
+# Set Singularity command
+singularity_cmd="singularity exec --env-file $ENV_FILE $SINGULARITY_CACHEDIR/eqtl-sumstats-service_${SINGULARITY_TAG}.sif"
+
 # TODO: uncomment the rest
-# # Set Singularity command
-# singularity_cmd="singularity exec --env-file $ENV_FILE $SINGULARITY_CACHEDIR/spark-etl-pipeline_${SINGULARITY_TAG}.sif"
+# Define the command to run the Spark application inside the Singularity container
+# spark_app_cmd="python3 /app/spark_app.py"
+spark_app_cmd="python3 --version"
 
-# # Define the command to run the Spark application inside the Singularity container
-# # spark_app_cmd="python3 /app/spark_app.py"
-# spark_app_cmd="python3 --version"
+# Gracefully stop any running jobs related to the application
+echo "Sending SIGTERM signal to existing jobs"
+scancel --name=spark_etl_job --signal=TERM --full
 
-# # Gracefully stop any running jobs related to the application
-# echo "Sending SIGTERM signal to existing jobs"
-# scancel --name=spark_etl_job --signal=TERM --full
-
-# # Submit the Spark ETL job using Slurm
-# echo "START submitting Spark ETL job"
-# sbatch --parsable --output="spark_etl_output.o" --error="spark_etl_error.e" --mem=${MEM} --time=2-00:00:00 --job-name=spark_etl_job --wrap="${lmod_cmd}; ${singularity_cmd} ${spark_app_cmd}"
-# echo "DONE submitting Spark ETL job"
+# Submit the Spark ETL job using Slurm
+echo "START submitting Spark ETL job"
+sbatch --parsable --output="spark_etl_output.o" --error="spark_etl_error.e" --mem=${MEM} --time=2-00:00:00 --job-name=spark_etl_job --wrap="${lmod_cmd}; ${singularity_cmd} ${spark_app_cmd}"
+echo "DONE submitting Spark ETL job"
