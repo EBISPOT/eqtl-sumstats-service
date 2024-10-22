@@ -53,10 +53,11 @@ deploy_staging:
     - chmod 700 ~/.ssh
   script:
     # # Copy the deployment script to the HPC
+    # TODO: fix
     # - scp ./deployment/START_EQTL_INGEST.sh $WORKER_USER@$WORKER_SERVER_SLURM:$WORKER_DIR_DEV
 
     # SSH into the HPC and run the deployment script
-    - ssh -o StrictHostKeyChecking=no "$WORKER_USER"@"$WORKER_SERVER_SLURM" "sbatch --mem=12000M --time=00:30:00 -D $WORKER_DIR_DEV -o deploy.out -e deploy.err --wrap='./START_EQTL_INGEST.sh $CI_COMMIT_SHA'"
+    - ssh -o StrictHostKeyChecking=no "$WORKER_USER"@"$WORKER_SERVER_SLURM" "sbatch --mem=12000M --time=00:30:00 -D $WORKER_DIR_DEV -o eqtl_deploy.out -e eqtl_deploy.err --wrap='./START_EQTL_INGEST.sh $CI_COMMIT_SHA'"
   tags:
     - gwas
   only:
