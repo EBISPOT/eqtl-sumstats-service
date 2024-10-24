@@ -34,9 +34,14 @@ services:
         condition: service_healthy
 
   spark-app:
+    image: ${DOCKER_IMAGE}
     build:
       context: .
       dockerfile: spark/Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+      cache_from:
+        - ${DOCKER_IMAGE}:latest
     depends_on:
       mongo:
         condition: service_healthy

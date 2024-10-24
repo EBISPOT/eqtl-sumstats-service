@@ -19,18 +19,22 @@ before_script:
 build:
   stage: build
   script:
+    # Enable BuildKit for advanced build features
+    - export DOCKER_BUILDKIT=1
+    - export COMPOSE_DOCKER_CLI_BUILD=1
+
     # Login to Docker Hub
     - echo "$DOCKER_HUB_PASSWORD" | docker login -u "$DOCKER_HUB_USER" --password-stdin
 
-    # Build the image using docker-compose
+    # Pull the latest image to use as a cache source
+    - docker pull $DOCKER_IMAGE:latest || true  # Ignore if the image doesn't exist yet
+
+    # Build the image using docker-compose with cache
     - docker-compose build
 
-    # Check if the image was built successfully
-    - docker images
-
     # Tag the built image with both latest and CI_COMMIT_SHA
-    - docker tag eqtl-sumstats-service-spark-app $DOCKER_IMAGE:latest
-    - docker tag eqtl-sumstats-service-spark-app $DOCKER_IMAGE:$CI_COMMIT_SHA
+    - docker tag $DOCKER_IMAGE $DOCKER_IMAGE:latest
+    - docker tag $DOCKER_IMAGE $DOCKER_IMAGE:$CI_COMMIT_SHA
 
     # Push both the SHA-tagged and latest images
     - docker push $DOCKER_IMAGE:$CI_COMMIT_SHA
