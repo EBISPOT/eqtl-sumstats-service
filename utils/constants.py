@@ -10,9 +10,9 @@ HTTP_SERVER = "http://ftp.ebi.ac.uk"
 FTP_USER = "anonymous"
 FTP_PASS = "ftppass"
 LOCAL_PATH = "/tmp/eqtl_files"
+SCRATCH_PATH = "/hps/nobackup/parkinso/spot/gwas/scratch/eqtl/"
 FTP_BASE_PATH = "/pub/databases/spot/eQTL/sumstats/"
-# FTP_BASE_PATH = "/pub/databases/spot/eQTL/sumstats/QTS000001/QTD000001/"
-
+ENV = os.environ.get("ENV", "local")
 
 class ETLStatus(Enum):
     EXTRACTION_PENDING = "EXTRACTION_PENDING"

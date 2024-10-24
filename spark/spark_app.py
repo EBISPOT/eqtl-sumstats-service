@@ -15,16 +15,19 @@ from utils import constants, utils
 
 
 def process_file(study_id, dataset_id, file_name):
+    env = constants.ENV
+    
     file_path_remote = f"{constants.FTP_BASE_PATH}{study_id}/{dataset_id}/{file_name}"
-    file_path_local = os.path.join(constants.LOCAL_PATH, file_name)
+    if env == 'local':
+        file_path_local = os.path.join(constants.LOCAL_PATH, file_name)
+    else:
+        file_path_local = os.path.join(f'{constants.SCRATCH_PATH}{env}', file_name)
 
     def update_etl_status(status):
         utils.update_etl_date(study_id, dataset_id, file_name, status)
 
     try:
         update_etl_status(constants.ETLStatus.DOWNLOAD_IN_PROGRESS)
-        # TODO: if local, then use ftp
-        # if hpc, then copy to datamover node
         utils.download_file(file_path_remote, file_path_local)
         update_etl_status(constants.ETLStatus.DOWNLOAD_COMPLETED)
     except Exception as e:
