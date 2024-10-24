@@ -90,11 +90,15 @@ def process_files_concurrently(files_to_etl):
 spark = (
     SparkSession.builder.appName("SparkApp")
     .config(
+        "spark.jars.packages", "org.mongodb.spark:mongo-spark-connector_2.12:3.0.1"
+    )
+    .config(
         "spark.mongodb.write.connection.uri",
         f"{constants.MONGO_URI}/{constants.MONGO_DB}.{constants.MONGO_COLLECTION}",
     )
     .getOrCreate()
 )
+
 
 # TODO: fix schema for .permuted and .cc files
 # or perhaps we can skip them - something to discuss with Kaur
