@@ -29,7 +29,6 @@ fi
 # Set Singularity command
 singularity_cmd="singularity exec --env-file $ENV_FILE $SINGULARITY_CACHEDIR/eqtl-sumstats-service_${SINGULARITY_TAG}.sif"
 
-# TODO: uncomment the rest
 # Define the command to run the Spark application inside the Singularity container
 spark_app_cmd="python3 /app/spark_app.py"
 # spark_app_cmd="python3 --version"
