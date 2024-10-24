@@ -36,7 +36,8 @@ def process_file(study_id, dataset_id, file_name):
         update_etl_status(constants.ETLStatus.EXTRACTION_IN_PROGRESS)
         df = spark.read.csv(file_path_local, sep="\t", header=True, schema=schema)
         # DEV: add in local
-        # df = df.limit(10)
+        # TODO: comment
+        df = df.limit(10)
 
         df = df.withColumn("study_id", lit(study_id))
         df = df.withColumn("dataset_id", lit(dataset_id))

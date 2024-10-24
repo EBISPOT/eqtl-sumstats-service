@@ -1,15 +1,10 @@
+import os
 from enum import Enum
 
-KAFKA_TOPIC = "etl_data"
-KAFKA_TOPIC_TRANSFORMED = "etl_data_transformed"
-KAFKA_SERVER = "localhost:9092"
-BOOTSTRAP_SERVERS = "kafka:9092"
-GROUP_ID = "mygroup"
-OFFSET_RESET = "earliest"
-MONGO_URI = "mongodb://mongo:27017"
-MONGO_DB = "eqtl_database"
-MONGO_COLLECTION = "processed_data"
-MONGO_COLLECTION_STATUS = "pipeline_status"
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://mongo:27017")
+MONGO_DB = os.environ.get("MONGO_DB", "eqtl_database")
+MONGO_COLLECTION = os.environ.get("MONGO_COLLECTION", "processed_data")
+MONGO_COLLECTION_STATUS = os.environ.get("MONGO_COLLECTION_STATUS", "pipeline_status")
 FTP_SERVER = "ftp.ebi.ac.uk"
 HTTP_SERVER = "http://ftp.ebi.ac.uk"
 FTP_USER = "anonymous"

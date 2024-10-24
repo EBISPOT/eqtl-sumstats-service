@@ -31,8 +31,8 @@ singularity_cmd="singularity exec --env-file $ENV_FILE $SINGULARITY_CACHEDIR/eqt
 
 # TODO: uncomment the rest
 # Define the command to run the Spark application inside the Singularity container
-# spark_app_cmd="python3 /app/spark_app.py"
-spark_app_cmd="python3 --version"
+spark_app_cmd="python3 /app/spark_app.py"
+# spark_app_cmd="python3 --version"
 
 # Gracefully stop any running jobs related to the application
 echo "Sending SIGTERM signal to existing jobs"
