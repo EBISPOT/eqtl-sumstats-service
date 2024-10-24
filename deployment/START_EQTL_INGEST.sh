@@ -34,8 +34,8 @@ spark_app_cmd="python3 /app/spark_app.py"
 # spark_app_cmd="python3 --version"
 
 # Gracefully stop any running jobs related to the application
-echo "Sending SIGTERM signal to existing jobs"
-scancel --name=spark_etl_job --signal=TERM --full
+# echo "Sending SIGTERM signal to existing jobs"
+# scancel --name=spark_etl_job --signal=TERM --full
 
 # Submit the Spark ETL job using Slurm
 echo "START submitting Spark ETL job"
